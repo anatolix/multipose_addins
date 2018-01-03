@@ -1,1 +1,1 @@
-# multipose_addins
+# This are proprietary modules on top of multipose project
