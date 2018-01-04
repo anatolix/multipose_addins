@@ -1,5 +1,7 @@
+import sys
+sys.path.append("..")
 
-from config import Configs, COCOSourceConfig
+from config import Configs, GetConfig, COCOSourceConfig
 import numpy as np
 
 class HeadCounterConfig:
@@ -22,12 +24,10 @@ class HeadCounterConfig:
         self.rightParts = rightParts
 
         # this numbers probably copied from matlab they are 1.. based not 0.. based
-        self.limb_from = ['neck', 'Rhip', 'Rkne', 'neck', 'Lhip', 'Lkne', 'neck', 'Rsho', 'Relb', 'Rsho', 'neck',
-                          'Lsho', 'Lelb', 'Lsho',
-                          'neck', 'nose', 'nose', 'Reye', 'Leye']
-        self.limb_to = ['Rhip', 'Rkne', 'Rank', 'Lhip', 'Lkne', 'Lank', 'Rsho', 'Relb', 'Rwri', 'Rear', 'Lsho',
-                        'Lelb', 'Lwri', 'Lear',
-                        'nose', 'Reye', 'Leye', 'Rear', 'Lear']
+        self.limb_from = \
+            ['neck', 'Rhip', 'Rkne', 'neck', 'Lhip', 'Lkne', 'neck', 'Rsho', 'Relb', 'Rsho', 'neck', 'Lsho', 'Lelb', 'Lsho', 'neck', 'nose', 'nose', 'Reye', 'Leye']
+        self.limb_to = \
+            ['Rhip', 'Rkne', 'Rank', 'Lhip', 'Lkne', 'Lank', 'Rsho', 'Relb', 'Rwri', 'Rear', 'Lsho', 'Lelb', 'Lwri', 'Lear', 'nose', 'Reye', 'Leye', 'Rear', 'Lear']
 
         self.limb_from = [self.parts_dict[n] for n in self.limb_from]
         self.limb_to = [self.parts_dict[n] for n in self.limb_to]
@@ -36,6 +36,8 @@ class HeadCounterConfig:
         assert self.limb_to == [x - 1 for x in [9, 10, 11, 12, 13, 14, 3, 4, 5, 17, 6, 7, 8, 18, 1, 15, 16, 17, 18]]
 
         self.limbs_conn = list(zip(self.limb_from, self.limb_to))
+        self.limbs_dict = dict(zip(self.limbs_conn, range(len(self.limbs_conn))))
+        print(self.limbs_dict)
 
         self.paf_layers = 2 * len(self.limbs_conn)
         self.heat_layers = self.num_parts
@@ -64,8 +66,20 @@ class HeadCounterConfig:
 
         self.transform_params = TransformationParams()
 
-    def create_augmenters(self):
-        return
+
+    def find_heat_layer(self, name):
+
+        num = self.heat_start + self.parts_dict[name]
+        return num
+
+    def find_paf_layers(self, from_name, to_name):
+
+        num_from = self.parts_dict[from_name]
+        num_to = self.parts_dict[to_name]
+        num = self.limbs_dict[ (num_from,num_to)]
+
+        return (self.paf_start + 2*num, self.paf_start + 2*num + 1)
+
 
     @staticmethod
     def ltr_parts(parts_dict):
@@ -87,8 +101,8 @@ class COCOSourceHeadConfig(COCOSourceConfig):
         mask = super().convert_mask(mask, global_config)
 
         # we added head layer here but haven't marked it yet. Lets wipe mask for whole layer.
-        HeadCenter = global_config.parts_dict['HeadCenter']
-        mask[:,:, HeadCenter] = 0.
+        HeadCenterLayer = global_config.find_heat_layer('HeadCenter')
+        mask[:,:, HeadCenterLayer] = 0.
 
         return mask
 
@@ -115,6 +129,7 @@ class MPIISourceHeadConfig:
         # for COCO neck is calculated like mean of 2 shoulders.
         self.parts_dict = dict(zip(self.parts, range(self.num_parts)))
 
+        self.null_layers_cache = None
 
     def convert(self, meta, global_config):
 
@@ -154,13 +169,24 @@ class MPIISourceHeadConfig:
 
         mask = np.repeat(mask[:, :, np.newaxis], global_config.num_layers, axis=2)
 
+        if self.null_layers_cache is None:
 
-        Leye = global_config.parts_dict['Leye']
-        Lear = global_config.parts_dict['Lear']
-        Reye = global_config.parts_dict['Reye']
-        Rear = global_config.parts_dict['Rear']
+            Leye = global_config.find_heat_layer('Leye')
+            Lear = global_config.find_heat_layer('Lear')
+            Reye = global_config.find_heat_layer('Reye')
+            Rear = global_config.find_heat_layer('Rear')
+            nose = global_config.find_heat_layer('nose')
 
-        mask[:, :, (Leye,Lear,Reye,Rear) ] = 0.
+            neck_nose = global_config.find_paf_layers('neck','nose')
+            nose_Reye = global_config.find_paf_layers('nose','Reye')
+            nose_Leye = global_config.find_paf_layers('nose','Leye')
+            Reye_Rear = global_config.find_paf_layers('Reye','Rear')
+            Leye_Lear = global_config.find_paf_layers('Leye','Lear')
+
+            self.null_layers_cache = (Leye,Lear,Reye,Rear,nose) + neck_nose + nose_Reye + nose_Leye + Reye_Rear + Leye_Lear
+            print("Layers will be nullified: ", self.null_layers_cache)
+
+        mask[:, :, self.null_layers_cache ] = 0.
 
         return mask
 
@@ -170,3 +196,14 @@ class MPIISourceHeadConfig:
 
 
 Configs["HeadCount"] = HeadCounterConfig
+
+
+if __name__ == "__main__":
+
+    # test it
+    foo = GetConfig("HeadCount")
+    print(foo.limbs_dict)
+    print(foo.find_heat_layer("HeadCenter"))
+    print(foo.find_paf_layers('Leye','Lear'))
+
+
