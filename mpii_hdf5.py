@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-from pycocotools.coco import COCO
-from scipy.spatial.distance import cdist
 import numpy as np
 import cv2
 import os
@@ -151,9 +149,9 @@ def load_image(img_dir, img_id):
     print((time()-t)*1000)
 
 
-    h, w, c = img.shape
-    mask_miss = np.zeros((h, w), dtype=np.uint8)
-    mask_miss *= 255
+#    h, w, c = img.shape
+#    mask_miss = np.zeros((h, w), dtype=np.uint8)
+#    mask_miss *= 255
 
     return img
 
@@ -208,8 +206,6 @@ def process_image(anno):
         yield_item['head'] = results['head'][pp:] + results['head'][:pp]
 
         yield yield_item
-
-    return results
 
 
 def writeImage(grp, img_grp, anno, processed_anno, img, count, image_id):

@@ -121,8 +121,14 @@ class MPIISourceHeadConfig:
     def __init__(self, hdf5_source):
 
         self.hdf5_source = hdf5_source
-        self.parts = ["HeadTop", "neck", "Rsho", "Relb", "Rwri", "Lsho", "Lelb", "Lwri", "Rhip", "Rkne",
-             "Rank", "Lhip", "Lkne", "Lank"]
+#        self.parts = ["HeadTop", "neck", "Rsho", "Relb", "Rwri", "Lsho", "Lelb", "Lwri", "Rhip", "Rkne",
+#             "Rank", "Lhip", "Lkne", "Lank"]
+
+        self.parts = [ "Rank", "Rkne", "Rhip", "Lhip", "Lkne", "Lank", "Pelvis", "Thorax", "neck", "HeadTop", "Rwri", "Relb", "Rsho", "Lsho", "Lelb", "Lwri"]
+
+        # "(0 - r ankle, 1 - r knee, 2 - r hip, 3 - l hip, 4 - l knee, 5 - l ankle, 6 - pelvis, 7 - thorax, 8 - upper neck, 9 - head top, 10 - r wrist, 10 - r wrist,
+        # 12 - r shoulder, 13 - l shoulder, 14 - l elbow, 15 - l wrist)"
+
 
         self.num_parts = len(self.parts)
 
@@ -135,8 +141,10 @@ class MPIISourceHeadConfig:
 
         joints = np.array(meta['joints'])
 
+        assert joints.shape[1] == len(self.parts)
+
         result = np.zeros((joints.shape[0], global_config.num_parts, 3), dtype=np.float)
-        result[:,:,2]=2.  # 2 - abstent, 1 visible, 0 - invisible
+        result[:,:,2]=3.  # OURS - # 3 never marked up in this dataset, 2 - not marked up in this person, 1 - marked and visible, 0 - marked but invisible
 
         for p in self.parts:
 
@@ -145,7 +153,7 @@ class MPIISourceHeadConfig:
                 global_id = global_config.parts_dict[p]
                 result[:, global_id, :] = joints[:, coco_id, :]
             else:
-                assert p == "HeadTop"
+                assert p == "HeadTop" or p == "Pelvis" or p == "Thorax"
 
         HeadCenterC = global_config.parts_dict['HeadCenter']
         neckC = self.parts_dict['neck']
@@ -153,7 +161,10 @@ class MPIISourceHeadConfig:
 
         # no head center, we calculate it as average of shoulders
         # TODO: we use 0 - hidden, 1 visible, 2 absent - it is not coco values they processed by generate_hdf5
-        both_parts_known = (joints[:, HeadTopC, 2]<2)  &  (joints[:, neckC, 2]<2)
+        both_parts_known = (joints[:, HeadTopC, 2]<2)  &  (joints[:, neckC, 2] < 2)
+
+        result[~both_parts_known, HeadCenterC, 2] = 2. # otherwise they will be 3. aka 'never marked in this dataset'
+
         result[both_parts_known, HeadCenterC, 0:2] = (joints[both_parts_known, neckC, 0:2] +
                                                     joints[both_parts_known, HeadTopC, 0:2]) / 2
         result[both_parts_known, HeadCenterC, 2] = np.minimum(joints[both_parts_known, neckC, 2],
@@ -161,7 +172,8 @@ class MPIISourceHeadConfig:
 
         meta['joints'] = result
 
-        meta['scale_provided'] = [ x * 328 / 200 for x in meta['scale_provided'] ]
+        #for MPII scale=height/200, for COCO scale=height/368
+        meta['scale_provided'] = [ x * 200/368 for x in meta['scale_provided'] ]
 
         return meta
 
@@ -195,6 +207,58 @@ class MPIISourceHeadConfig:
         return self.hdf5_source
 
 
+class PochtaSourceHeadConfig:
+
+    def __init__(self, hdf5_source):
+
+        self.hdf5_source = hdf5_source
+        self.parts = [ "HeadCenter" ]
+        self.num_parts = len(self.parts)
+        self.parts_dict = dict(zip(self.parts, range(self.num_parts)))
+        self.mask_cache = None
+
+    def convert(self, meta, global_config):
+
+        joints = np.array(meta['joints'])
+
+        assert joints.shape[1] == len(self.parts)
+
+        result = np.zeros((joints.shape[0], global_config.num_parts, 3), dtype=np.float)
+        result[:,:,2]=3.  # OURS - # 3 never marked up in this dataset, 2 - not marked up in this person, 1 - marked and visible, 0 - marked but invisible
+
+        for p in self.parts:
+
+            if p in global_config.parts_dict:
+                pochta_id = self.parts_dict[p]
+                assert pochta_id==0
+                global_id = global_config.parts_dict[p]
+                result[:, global_id, :] = joints[:, pochta_id, :]
+            else:
+                assert False
+
+        meta['joints'] = result
+
+        return meta
+
+    def convert_mask(self, mask, global_config):
+
+        if self.mask_cache is not None:
+            return self.mask_cache
+
+        head_layer = global_config.find_heat_layer('HeadCenter')
+        print("Layers will be kept: ", head_layer)
+
+        self.mask_cache = np.zeros(global_config.parts_shape, dtype=np.float)
+        self.mask_cache[:, :, head_layer ] = 1.
+
+        return self.mask_cache
+
+
+    def source(self):
+
+        return self.hdf5_source
+
+
 Configs["HeadCount"] = HeadCounterConfig
 
 
@@ -202,8 +266,5 @@ if __name__ == "__main__":
 
     # test it
     foo = GetConfig("HeadCount")
-    print(foo.limbs_dict)
-    print(foo.find_heat_layer("HeadCenter"))
-    print(foo.find_paf_layers('Leye','Lear'))
 
 
