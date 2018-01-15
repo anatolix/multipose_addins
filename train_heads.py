@@ -29,11 +29,13 @@ else:
 
     train_ds = [ COCOSourceHeadConfig("../dataset/coco_train_dataset.h5"),
                  MPIISourceHeadConfig("../dataset/mpii_train_dataset.h5"),
-                 PochtaSourceHeadConfig("../dataset/pochta_train_dataset.h5") ]
+                 PochtaSourceHeadConfig("../dataset/pochta_train_dataset.h5"),
+                 PochtaSourceHeadConfig("../dataset/brainwash_train_dataset.h5")]
 
     val_ds = [ COCOSourceHeadConfig("../dataset/coco_val_dataset.h5"),
                MPIISourceHeadConfig("../dataset/mpii_val_dataset.h5"),
-               PochtaSourceHeadConfig("../dataset/pochta_val_dataset.h5") ]
+               PochtaSourceHeadConfig("../dataset/pochta_val_dataset.h5"),
+               PochtaSourceHeadConfig("../dataset/brainwash_val_dataset.h5")]
 
     # val_ds = [ PochtaSourceHeadConfig("../dataset/brainwash_val_dataset.h5")]
 
