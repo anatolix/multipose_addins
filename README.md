@@ -1,3 +1,8 @@
-# Закрытый репозитарий multipose
+# Multipose experemental repo
 
-Это репозитарий, чтобы делать штуки которые мы не хотим всем опенсорсить. Он подключается в основной как submodule с общей идеей, что если его не подключать основной сломаться не должен.
+Use with caution, nothing really works here :)
+
+You could find here:
+- how to use **MPII Dataset**
+- how to use **brainwash dataset**
+- code for **Pochta** is not really useful since dataset is proprietary
