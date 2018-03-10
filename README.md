@@ -1,4 +1,4 @@
-# Multipose experemental repo
+# Multipose experimental repo
 
 Use with caution, nothing really works here :)
 
